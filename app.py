@@ -1,10 +1,13 @@
 from flask import Flask, render_template, request, jsonify
 import os
-# 📍 引入剛剛寫好的數學引擎主函數
+from werkzeug.utils import secure_filename  # 📍 關鍵新增：用來確保檔名在雲端存檔時不會出錯
 from si_math_core import run_correlation 
 
 app = Flask(__name__)
-UPLOAD_FOLDER = 'uploads'
+
+# 📍 關鍵修正：強制使用「絕對路徑」來定位 uploads 資料夾
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
@@ -22,13 +25,17 @@ def analyze():
         if not sim_file or not test_file:
             return jsonify({'status': 'error', 'message': '請確認模擬與實測檔案皆已上傳！'})
 
-        # 儲存檔案
-        sim_path = os.path.join(app.config['UPLOAD_FOLDER'], sim_file.filename)
-        test_path = os.path.join(app.config['UPLOAD_FOLDER'], test_file.filename)
+        # 📍 關鍵修正：套用 secure_filename 過濾檔名，並使用絕對路徑存檔
+        sim_filename = secure_filename(sim_file.filename)
+        test_filename = secure_filename(test_file.filename)
+        
+        sim_path = os.path.join(app.config['UPLOAD_FOLDER'], sim_filename)
+        test_path = os.path.join(app.config['UPLOAD_FOLDER'], test_filename)
+        
         sim_file.save(sim_path)
         test_file.save(test_path)
 
-        # 📍 呼叫數學核心引擎進行運算！
+        # 呼叫數學核心引擎進行運算！
         result_data = run_correlation(sim_path, test_path, mode)
 
         return jsonify({
@@ -38,6 +45,7 @@ def analyze():
         })
 
     except Exception as e:
+        # 這樣如果還有錯，真正的錯誤原因才會顯示在網頁畫面上
         return jsonify({'status': 'error', 'message': f'伺服器運算錯誤: {str(e)}'})
 
 if __name__ == '__main__':
