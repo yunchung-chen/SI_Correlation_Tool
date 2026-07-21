@@ -1,0 +1,11 @@
+# 忽略暫存資料夾內的實體檔案，但保留資料夾本身
+uploads/*
+!uploads/.gitkeep
+
+# 忽略 Python 產生的暫存檔
+__pycache__/
+*.pyc
+
+# 忽略虛擬環境
+venv/
+env/
