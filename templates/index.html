@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SI 模擬與實測比對系統</title>
+    <!-- 引入 Plotly 畫圖套件 -->
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        :root {
+            --primary: #0055A4;
+            --bg-color: #F4F7F6;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: #333;
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            background: #fff;
+            width: 100%;
+            max-width: 900px;
+            padding: 30px 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: var(--primary);
+            text-align: center;
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 15px;
+        }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .upload-box {
+            border: 2px dashed #B0BEC5;
+            padding: 30px;
+            text-align: center;
+            border-radius: 8px;
+            background: #FAFAFA;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .upload-box:hover {
+            border-color: var(--primary);
+            background: #E3F2FD;
+        }
+        .upload-box input[type="file"] { display: none; }
+        .file-name {
+            margin-top: 10px;
+            font-weight: bold;
+            color: var(--primary);
+            word-break: break-all;
+        }
+        .form-group {
+            margin-top: 25px;
+            display: flex;
+            flex-direction: column;
+        }
+        label { font-weight: bold; margin-bottom: 8px; color: #555; }
+        select {
+            padding: 12px;
+            font-size: 1em;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+        }
+        .btn-submit {
+            width: 100%;
+            padding: 15px;
+            background-color: var(--primary);
+            color: white;
+            font-size: 1.2em;
+            font-weight: bold;
+            border: none;
+            border-radius: 6px;
+            margin-top: 30px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .btn-submit:hover { background-color: #003F7A; }
+        
+        #status-msg {
+            margin-top: 20px;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        /* 預留給 Plotly 畫圖的區塊 */
+        #chart-container {
+            width: 100%;
+            height: 600px;
+            margin-top: 30px;
+            display: none;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 10px;
+            background: #fff;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>🔍 模擬與實測自動比對系統 (Correlation Tool)</h1>
+        
+        <div class="grid-2">
+            <!-- 模擬檔案上傳 -->
+            <div class="upload-box" onclick="document.getElementById('sim_file').click()">
+                <h3>💻 上傳模擬檔案</h3>
+                <p>支援格式: .s4p, .s28p</p>
+                <input type="file" id="sim_file" accept=".sNp,.s4p,.s28p">
+                <div id="sim_name" class="file-name">尚未選擇檔案</div>
+            </div>
+
+            <!-- 實測檔案上傳 -->
+            <div class="upload-box" onclick="document.getElementById('test_file').click()">
+                <h3>🔬 上傳實測檔案</h3>
+                <p>支援格式: VNA .xlsx</p>
+                <input type="file" id="test_file" accept=".xlsx,.csv">
+                <div id="test_name" class="file-name">尚未選擇檔案</div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>請選擇比對項目：</label>
+            <select id="analysis_mode">
+                <option value="IL">Insertion Loss (插入損耗 Sdd21)</option>
+                <option value="TDR_P1">TDR Impedance (阻抗 P1 端)</option>
+                <option value="TDR_P2">TDR Impedance (阻抗 P2 端)</option>
+            </select>
+        </div>
+
+        <button class="btn-submit" onclick="startAnalysis()">開始進行比對 🚀</button>
+        <div id="status-msg"></div>
+    </div>
+
+    <!-- 這裡將用來顯示未來的波形圖 -->
+    <div id="chart-container" class="container"></div>
+
+    <script>
+        // 顯示選擇的檔案名稱
+        document.getElementById('sim_file').addEventListener('change', function(e) {
+            document.getElementById('sim_name').innerText = e.target.files[0] ? e.target.files[0].name : '尚未選擇檔案';
+        });
+        document.getElementById('test_file').addEventListener('change', function(e) {
+            document.getElementById('test_name').innerText = e.target.files[0] ? e.target.files[0].name : '尚未選擇檔案';
+        });
+
+        // 點擊開始比對
+        async function startAnalysis() {
+            const simFile = document.getElementById('sim_file').files[0];
+            const testFile = document.getElementById('test_file').files[0];
+            const mode = document.getElementById('analysis_mode').value;
+            const statusDiv = document.getElementById('status-msg');
+
+            if (!simFile || !testFile) {
+                statusDiv.innerHTML = '<span style="color:red;">❌ 請確認兩個檔案皆已上傳！</span>';
+                return;
+            }
+
+            statusDiv.innerHTML = '<span style="color:blue;">⏳ 檔案傳送中，請稍候...</span>';
+
+            // 打包資料準備送給後端
+            const formData = new FormData();
+            formData.append('sim_file', simFile);
+            formData.append('test_file', testFile);
+            formData.append('mode', mode);
+
+            try {
+                // 呼叫 Flask 的 /analyze 路由
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    statusDiv.innerHTML = `<span style="color:green;">✅ ${result.message}</span>`;
+                    // 下一階段我們將在這裡加入 Plotly 畫圖的邏輯！
+                } else {
+                    statusDiv.innerHTML = `<span style="color:red;">❌ 錯誤: ${result.message}</span>`;
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<span style="color:red;">❌ 伺服器連線失敗，請確認後端已啟動。</span>`;
+            }
+        }
+    </script>
+</body>
+</html>
