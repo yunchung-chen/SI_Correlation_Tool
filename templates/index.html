@@ -177,7 +177,6 @@
             formData.append('mode', mode);
 
             try {
-                // 呼叫 Flask 的 /analyze 路由
                 const response = await fetch('/analyze', {
                     method: 'POST',
                     body: formData
@@ -187,14 +186,73 @@
 
                 if (result.status === 'success') {
                     statusDiv.innerHTML = `<span style="color:green;">✅ ${result.message}</span>`;
-                    // 下一階段我們將在這裡加入 Plotly 畫圖的邏輯！
+                    
+                    // 顯示畫布
+                    document.getElementById('chart-container').style.display = 'block';
+                    const data = result.chart_data;
+
+                    // 準備 Plotly 繪圖資料
+                    // 1. 模擬波形
+                    const traceSim = {
+                        x: data.x_freq,
+                        y: data.y_sim,
+                        mode: 'lines',
+                        name: 'Simulation (CST)',
+                        line: { color: '#0055A4', width: 2 }
+                    };
+
+                    // 2. 實測波形
+                    const traceTest = {
+                        x: data.x_freq,
+                        y: data.y_test,
+                        mode: 'lines',
+                        name: 'Measurement (VNA)',
+                        line: { color: '#FF7F00', width: 2, dash: 'dot' }
+                    };
+
+                    // 3. 誤差曲線 (畫在下方的副圖 Y軸)
+                    const traceDelta = {
+                        x: data.x_freq,
+                        y: data.delta,
+                        mode: 'lines',
+                        name: 'Delta (Error)',
+                        line: { color: '#E3000F', width: 2 },
+                        yaxis: 'y2', // 指定對應到第二個 Y 軸
+                        fill: 'tozeroy' // 加上淡淡的紅色填色，視覺更強烈
+                    };
+
+                    const plotData = [traceSim, traceTest, traceDelta];
+
+                    // 介面排版佈局
+                    const layout = {
+                        title: { text: data.title, font: { size: 24 } },
+                        hovermode: 'x unified', // 滑鼠移過去會同時顯示三條線的數值
+                        height: 700,
+                        // 上半部大圖 (主波形)
+                        yaxis: { 
+                            title: data.y_title, 
+                            domain: [0.35, 1] // 佔據上方 65% 的空間
+                        },
+                        // 下半部小圖 (誤差曲線)
+                        yaxis2: { 
+                            title: 'Delta Error (dB)', 
+                            domain: [0, 0.25], // 佔據下方 25% 的空間
+                            anchor: 'x'
+                        },
+                        xaxis: { title: data.x_title },
+                        margin: { t: 60, b: 50, l: 60, r: 40 }
+                    };
+
+                    // 開始渲染
+                    Plotly.newPlot('chart-container', plotData, layout);
+
                 } else {
                     statusDiv.innerHTML = `<span style="color:red;">❌ 錯誤: ${result.message}</span>`;
                 }
             } catch (error) {
-                statusDiv.innerHTML = `<span style="color:red;">❌ 伺服器連線失敗，請確認後端已啟動。</span>`;
+                statusDiv.innerHTML = `<span style="color:red;">❌ 伺服器連線失敗。</span>`;
             }
-        }
+        
     </script>
 </body>
 </html>
