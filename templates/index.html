@@ -147,7 +147,7 @@
     <!-- 這裡將用來顯示未來的波形圖 -->
     <div id="chart-container" class="container"></div>
 
-    <script>
+<script>
         // 顯示選擇的檔案名稱
         document.getElementById('sim_file').addEventListener('change', function(e) {
             document.getElementById('sim_name').innerText = e.target.files[0] ? e.target.files[0].name : '尚未選擇檔案';
@@ -252,7 +252,7 @@
             } catch (error) {
                 statusDiv.innerHTML = `<span style="color:red;">❌ 伺服器連線失敗。</span>`;
             }
-        
+        } 
     </script>
 </body>
 </html>
